@@ -24,50 +24,7 @@ This project demonstrates how AI-powered chatbots can enhance customer support f
 - **AI API Integration**: Mock API (due to paid account requirement)  
 
 ---
-/frontend → React-based UI
----
 
-## 🔑 Setup & Installation  
-
-1. **Clone the repository**  
-```bash
-git clone https://github.com/your-username/Saas-Customer-Service-chatbot-with-AI-integration.git
-cd Saas-Customer-Service-chatbot-with-AI-integration
-Install dependencies
-Frontend:
-
-cd frontend
-npm install
-
-
-Backend:
-
-cd backend
-npm install
-
-
-Setup environment variables
-Create a .env file in the backend:
-
-MONGO_URI=your-mongodb-uri
-JWT_SECRET=your-secret-key
-PORT=5000
-
-
-Run the project
-Backend:
-
-npm run dev
-
-
-Frontend:
-
-npm start
-
-📌 Problem Solving Highlight
-
-Earlier, OpenAI’s free API access allowed easy chatbot integration. Now, it requires a paid account.
-To ensure functionality for demonstration and learning purposes, a mock AI API call was implemented.
 This showcases adaptability, problem-solving, and ability to deliver under constraints.
 /backend → Express.js + MongoDB + JWT auth
 
