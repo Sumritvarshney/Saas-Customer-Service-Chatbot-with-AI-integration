@@ -1,73 +1,97 @@
 import User from "../models/User.js";
 import { configureOpenAI } from "../config/openai-config.js";
 import { OpenAIApi } from "openai";
+/**
+ * Generate a new chat completion using OpenAI
+ */
 export const generateChatCompletion = async (req, res, next) => {
     const { message } = req.body;
     try {
+        // ✅ Check if user exists and token is valid
         const user = await User.findById(res.locals.jwtData.id);
-        if (!user)
-            return res
-                .status(401)
-                .json({ message: "User not registered OR Token malfunctioned" });
-        // grab chats of user
+        if (!user) {
+            return res.status(401).json({ message: "User not registered or token invalid" });
+        }
+        // Add user message to chat history in database
+        user.chats.push({ role: "user", content: message });
+        // Use mock response if enabled
+        if (process.env.USE_MOCK_OPENAI === "true") {
+            const mockResponseContent = "This is a mock response from OpenAI API.";
+            user.chats.push({ role: "assistant", content: mockResponseContent });
+            await user.save();
+            return res.status(200).json({ chats: user.chats });
+        }
+        // Prepare chat messages for API call
         const chats = user.chats.map(({ role, content }) => ({
-            role,
+            role: role,
             content,
         }));
-        chats.push({ content: message, role: "user" });
-        user.chats.push({ content: message, role: "user" });
-        // send all chats with new one to openAI API
+        // Configure OpenAI
         const config = configureOpenAI();
         const openai = new OpenAIApi(config);
-        // get latest response
-        const chatResponse = await openai.createChatCompletion({
-            model: "gpt-3.5-turbo",
-            messages: chats,
+        console.log("Sending request to OpenAI API...");
+        let chatResponse;
+        try {
+            chatResponse = await openai.createChatCompletion({
+                model: "gpt-3.5-turbo",
+                messages: chats,
+            });
+            console.log("OpenAI response received");
+        }
+        catch (err) {
+            if (err.response?.status === 429) {
+                console.error("OpenAI rate limit exceeded");
+                return res.status(429).json({ message: "OpenAI rate limit exceeded. Try again later." });
+            }
+            console.error("OpenAI API error:", err.message);
+            return res.status(500).json({ message: "OpenAI request failed", cause: err.message });
+        }
+        // Save assistant response to DB
+        const assistantMessage = chatResponse.data.choices[0].message;
+        user.chats.push({
+            content: assistantMessage.content,
+            role: assistantMessage.role,
         });
-        user.chats.push(chatResponse.data.choices[0].message);
         await user.save();
         return res.status(200).json({ chats: user.chats });
     }
     catch (error) {
-        console.log(error);
-        return res.status(500).json({ message: "Something went wrong" });
+        console.error("Server error:", error.message);
+        return res.status(500).json({ message: "Internal server error", cause: error.message });
     }
 };
+/**
+ * Send all user chats to frontend
+ */
 export const sendChatsToUser = async (req, res, next) => {
     try {
-        //user token check
         const user = await User.findById(res.locals.jwtData.id);
         if (!user) {
-            return res.status(401).send("User not registered OR Token malfunctioned");
-        }
-        if (user._id.toString() !== res.locals.jwtData.id) {
-            return res.status(401).send("Permissions didn't match");
+            return res.status(401).json({ message: "User not registered or token invalid" });
         }
         return res.status(200).json({ message: "OK", chats: user.chats });
     }
     catch (error) {
-        console.log(error);
-        return res.status(200).json({ message: "ERROR", cause: error.message });
+        console.error("Server error:", error.message);
+        return res.status(500).json({ message: "Internal server error", cause: error.message });
     }
 };
+/**
+ * Delete all user chats
+ */
 export const deleteChats = async (req, res, next) => {
     try {
-        //user token check
         const user = await User.findById(res.locals.jwtData.id);
         if (!user) {
-            return res.status(401).send("User not registered OR Token malfunctioned");
+            return res.status(401).json({ message: "User not registered or token invalid" });
         }
-        if (user._id.toString() !== res.locals.jwtData.id) {
-            return res.status(401).send("Permissions didn't match");
-        }
-        //@ts-ignore
-        user.chats = [];
+        user.chats.splice(0, user.chats.length);
         await user.save();
-        return res.status(200).json({ message: "OK" });
+        return res.status(200).json({ message: "Chats deleted successfully" });
     }
     catch (error) {
-        console.log(error);
-        return res.status(200).json({ message: "ERROR", cause: error.message });
+        console.error("Server error:", error.message);
+        return res.status(500).json({ message: "Internal server error", cause: error.message });
     }
 };
 //# sourceMappingURL=chat-controllers.js.map

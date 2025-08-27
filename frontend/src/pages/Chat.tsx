@@ -11,26 +11,64 @@ import {
   sendChatRequest,
 } from "../helpers/api-communicator";
 import toast from "react-hot-toast";
+
 type Message = {
   role: "user" | "assistant";
   content: string;
 };
+
 const Chat = () => {
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const auth = useAuth();
   const [chatMessages, setChatMessages] = useState<Message[]>([]);
-  const handleSubmit = async () => {
-    const content = inputRef.current?.value as string;
-    if (inputRef && inputRef.current) {
-      inputRef.current.value = "";
+  const [loading, setLoading] = useState(false);
+
+  // Redirect to login if not logged in
+  useEffect(() => {
+    if (!auth?.user) {
+      navigate("/login");
     }
+  }, [auth]);
+
+  // Load user chats
+  useLayoutEffect(() => {
+    if (auth?.isLoggedIn && auth.user) {
+      setLoading(true);
+      toast.loading("Loading Chats", { id: "loadchats" });
+
+      getUserChats()
+        .then((data) => {
+          setChatMessages(data?.chats || []);
+          toast.success("Successfully loaded chats", { id: "loadchats" });
+        })
+        .catch((err) => {
+          console.log(err);
+          toast.error("Loading Failed", { id: "loadchats" });
+        })
+        .finally(() => setLoading(false));
+    }
+  }, [auth]);
+
+  // Handle sending a message
+  const handleSubmit = async () => {
+    const content = inputRef.current?.value.trim();
+    if (!content) return;
+
+    inputRef.current!.value = "";
     const newMessage: Message = { role: "user", content };
     setChatMessages((prev) => [...prev, newMessage]);
-    const chatData = await sendChatRequest(content);
-    setChatMessages([...chatData.chats]);
-    //
+
+    try {
+      const chatData = await sendChatRequest(content);
+      setChatMessages(chatData?.chats || []);
+    } catch (err) {
+      console.log(err);
+      toast.error("Failed to send message");
+    }
   };
+
+  // Handle deleting chats
   const handleDeleteChats = async () => {
     try {
       toast.loading("Deleting Chats", { id: "deletechats" });
@@ -42,25 +80,7 @@ const Chat = () => {
       toast.error("Deleting chats failed", { id: "deletechats" });
     }
   };
-  useLayoutEffect(() => {
-    if (auth?.isLoggedIn && auth.user) {
-      toast.loading("Loading Chats", { id: "loadchats" });
-      getUserChats()
-        .then((data) => {
-          setChatMessages([...data.chats]);
-          toast.success("Successfully loaded chats", { id: "loadchats" });
-        })
-        .catch((err) => {
-          console.log(err);
-          toast.error("Loading Failed", { id: "loadchats" });
-        });
-    }
-  }, [auth]);
-  useEffect(() => {
-    if (!auth?.user) {
-      return navigate("/login");
-    }
-  }, [auth]);
+
   return (
     <Box
       sx={{
@@ -72,6 +92,7 @@ const Chat = () => {
         gap: 3,
       }}
     >
+      {/* Sidebar */}
       <Box
         sx={{
           display: { md: "flex", xs: "none", sm: "none" },
@@ -99,15 +120,17 @@ const Chat = () => {
               fontWeight: 700,
             }}
           >
-            {auth?.user?.name[0]}
-            {auth?.user?.name.split(" ")[1][0]}
+            {auth?.user?.name?.[0]}
+            {auth?.user?.name?.split(" ")[1]?.[0] || ""}
           </Avatar>
           <Typography sx={{ mx: "auto", fontFamily: "work sans" }}>
             You are talking to a ChatBOT
           </Typography>
-          <Typography sx={{ mx: "auto", fontFamily: "work sans", my: 4, p: 3 }}>
-            You can ask some questions related to Knowledge, Business, Advices,
-            Education, etc. But avoid sharing personal information
+          <Typography
+            sx={{ mx: "auto", fontFamily: "work sans", my: 4, p: 3 }}
+          >
+            You can ask questions related to Knowledge, Business, Advice,
+            Education, etc. Avoid sharing personal information.
           </Typography>
           <Button
             onClick={handleDeleteChats}
@@ -128,6 +151,8 @@ const Chat = () => {
           </Button>
         </Box>
       </Box>
+
+      {/* Chat Area */}
       <Box
         sx={{
           display: "flex",
@@ -147,6 +172,7 @@ const Chat = () => {
         >
           Model - GPT 3.5 Turbo
         </Typography>
+
         <Box
           sx={{
             width: "100%",
@@ -155,44 +181,53 @@ const Chat = () => {
             mx: "auto",
             display: "flex",
             flexDirection: "column",
-            overflow: "scroll",
-            overflowX: "hidden",
-            overflowY: "auto",
+            overflow: "auto",
             scrollBehavior: "smooth",
           }}
         >
-          {chatMessages.map((chat, index) => (
-            //@ts-ignore
-            <ChatItem content={chat.content} role={chat.role} key={index} />
-          ))}
+          {loading ? (
+            <Typography sx={{ color: "white", mx: "auto", mt: 2 }}>
+              Loading chats...
+            </Typography>
+          ) : chatMessages?.length > 0 ? (
+            chatMessages.map((chat, index) => (
+              <ChatItem content={chat.content} role={chat.role} key={index} />
+            ))
+          ) : (
+            <Typography sx={{ color: "white", mx: "auto", mt: 2 }}>
+              No chats yet. Start the conversation!
+            </Typography>
+          )}
         </Box>
-        <div
-          style={{
+
+        <Box
+          sx={{
             width: "100%",
-            borderRadius: 8,
+            borderRadius: 2,
             backgroundColor: "rgb(17,27,39)",
             display: "flex",
-            margin: "auto",
+            mt: 2,
           }}
         >
-          {" "}
           <input
             ref={inputRef}
             type="text"
+            placeholder="Type a message..."
             style={{
               width: "100%",
               backgroundColor: "transparent",
-              padding: "30px",
+              padding: "20px",
               border: "none",
               outline: "none",
               color: "white",
-              fontSize: "20px",
+              fontSize: "18px",
             }}
+            onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
           />
           <IconButton onClick={handleSubmit} sx={{ color: "white", mx: 1 }}>
             <IoMdSend />
           </IconButton>
-        </div>
+        </Box>
       </Box>
     </Box>
   );
