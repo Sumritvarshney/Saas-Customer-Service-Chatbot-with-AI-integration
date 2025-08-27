@@ -29,4 +29,3 @@ This showcases adaptability, problem-solving, and ability to deliver under const
 /backend → Express.js + MongoDB + JWT auth
 
 
-## 📂 Project Structure  
